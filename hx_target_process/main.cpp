@@ -10,7 +10,7 @@ int main(int argc, char* argv[])
    DWORD a = 0xaabbccdd;
 
    printf("Pid: %08x\n", GetCurrentProcessId());
-   printf("Address of \"a\" is %016llx\n", (DWORD64)&a);
+   printf("Address of \"a\" is 0x%0llx\n", (DWORD64)&a);
 
    while (true)
    {

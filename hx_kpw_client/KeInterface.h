@@ -18,7 +18,7 @@ typedef struct _KERNEL_WRITE_REQUEST
 {
 	ULONG ProcessId;
 
-	ULONG Address;
+	DWORD64 Address;
 	ULONG Value;
 	ULONG Size;
 
@@ -67,7 +67,7 @@ public:
 			return (type)false;
 	}
 
-	bool WriteVirtualMemory(ULONG ProcessId, ULONG WriteAddress,
+	bool WriteVirtualMemory(ULONG ProcessId, DWORD64 WriteAddress,
 		ULONG WriteValue, SIZE_T WriteSize)
 	{
 		if (hDriver == INVALID_HANDLE_VALUE)

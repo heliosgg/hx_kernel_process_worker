@@ -25,7 +25,7 @@ typedef struct _KERNEL_WRITE_REQUEST
 {
 	ULONG ProcessId;
 
-	ULONG Address;
+	DWORD64 Address;
 	ULONG Value;
 	ULONG Size;
 
@@ -95,7 +95,7 @@ NTSTATUS IoControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 			KeWriteVirtualMemory(Process, &WriteInput->Value,
 				WriteInput->Address, WriteInput->Size);
 
-		DbgPrintEx(0, 0, DBG_MARKER "Write Params:  %lu, %#010x \n", WriteInput->Value, WriteInput->Address);
+		DbgPrintEx(0, 0, DBG_MARKER "Write Params:  %lx, 0x%llx \n", WriteInput->Value, WriteInput->Address);
 
 		Status = STATUS_SUCCESS;
 		BytesIO = sizeof(KERNEL_WRITE_REQUEST);
