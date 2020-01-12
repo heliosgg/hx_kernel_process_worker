@@ -1,39 +1,19 @@
-#pragma warning(disable:6011)
-
 #include "ntos.h"
+#include <defs.h>
+#include <byte_buf.h>
+
+#pragma warning(disable:6011)
 
 #define DBG_MARKER "[HxKPW] "
 
-#define IO_READ_REQUEST CTL_CODE(FILE_DEVICE_UNKNOWN, 0x0701 /* Our Custom Code */, METHOD_BUFFERED, FILE_SPECIAL_ACCESS)
-#define IO_WRITE_REQUEST CTL_CODE(FILE_DEVICE_UNKNOWN, 0x0702 /* Our Custom Code */, METHOD_BUFFERED, FILE_SPECIAL_ACCESS)
 
-PDEVICE_OBJECT pDeviceObject; // our driver object
-UNICODE_STRING dev, dos; // Driver registry paths
-
-// datatype for read request
-typedef struct _KERNEL_READ_REQUEST
-{
-	ULONG ProcessId;
-
-	ULONG Address;
-	ULONG Response;
-	ULONG Size;
-
-} KERNEL_READ_REQUEST, * PKERNEL_READ_REQUEST;
-
-typedef struct _KERNEL_WRITE_REQUEST
-{
-	ULONG ProcessId;
-
-	DWORD64 Address;
-	ULONG Value;
-	ULONG Size;
-
-} KERNEL_WRITE_REQUEST, * PKERNEL_WRITE_REQUEST;
+PDEVICE_OBJECT pDeviceObject;
+UNICODE_STRING dev, dos;
 
 NTSTATUS UnloadDriver(PDRIVER_OBJECT pDriverObject);
 NTSTATUS CreateCall(PDEVICE_OBJECT DeviceObject, PIRP irp);
 NTSTATUS CloseCall(PDEVICE_OBJECT DeviceObject, PIRP irp);
+
 
 NTSTATUS KeReadVirtualMemory(PEPROCESS Process, PVOID SourceAddress, PVOID TargetAddress, SIZE_T Size)
 {
@@ -45,6 +25,7 @@ NTSTATUS KeReadVirtualMemory(PEPROCESS Process, PVOID SourceAddress, PVOID Targe
 		return STATUS_ACCESS_DENIED;
 }
 
+
 NTSTATUS KeWriteVirtualMemory(PEPROCESS Process, PVOID SourceAddress, PVOID TargetAddress, SIZE_T Size)
 {
 	PSIZE_T Bytes;
@@ -55,10 +36,11 @@ NTSTATUS KeWriteVirtualMemory(PEPROCESS Process, PVOID SourceAddress, PVOID Targ
 		return STATUS_ACCESS_DENIED;
 }
 
+
 // IOCTL Call Handler function
 NTSTATUS IoControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 {
-	NTSTATUS Status;
+	NTSTATUS Status = STATUS_INVALID_PARAMETER;
 	ULONG BytesIO = 0;
 
 	PIO_STACK_LOCATION stack = IoGetCurrentIrpStackLocation(Irp);
@@ -66,11 +48,11 @@ NTSTATUS IoControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 	// Code received from user space
 	ULONG ControlCode = stack->Parameters.DeviceIoControl.IoControlCode;
 
-	if (ControlCode == IO_READ_REQUEST)
+	switch (ControlCode)
 	{
-		// Get the input buffer & format it to our struct
+	case IO_READ_REQUEST:
+	{
 		PKERNEL_READ_REQUEST ReadInput = (PKERNEL_READ_REQUEST)Irp->AssociatedIrp.SystemBuffer;
-		PKERNEL_READ_REQUEST ReadOutput = (PKERNEL_READ_REQUEST)Irp->AssociatedIrp.SystemBuffer;
 
 		PEPROCESS Process;
 		// Get our process
@@ -78,33 +60,46 @@ NTSTATUS IoControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 			KeReadVirtualMemory(Process, ReadInput->Address,
 				&ReadInput->Response, ReadInput->Size);
 
-		DbgPrintEx(0, 0, DBG_MARKER "Read Params:  %lu, %#010x \n", ReadInput->ProcessId, ReadInput->Address);
-		DbgPrintEx(0, 0, DBG_MARKER "Value: %lu \n", ReadOutput->Response);
+		DbgPrintEx(0, 0, DBG_MARKER "Read params:  %lu, %#010x\n", ReadInput->ProcessId, ReadInput->Address);
+		DbgPrintEx(0, 0, DBG_MARKER "Value: %lu\n", ReadInput->Response);
 
 		Status = STATUS_SUCCESS;
 		BytesIO = sizeof(KERNEL_READ_REQUEST);
+		break;
 	}
-	else if (ControlCode == IO_WRITE_REQUEST)
+	case IO_WRITE_REQUEST:
 	{
-		// Get the input buffer & format it to our struct
 		PKERNEL_WRITE_REQUEST WriteInput = (PKERNEL_WRITE_REQUEST)Irp->AssociatedIrp.SystemBuffer;
 
 		PEPROCESS Process;
 		// Get our process
 		if (NT_SUCCESS(PsLookupProcessByProcessId(WriteInput->ProcessId, &Process)))
-			KeWriteVirtualMemory(Process, &WriteInput->Value,
+			KeWriteVirtualMemory(Process, WriteInput->Value,
 				WriteInput->Address, WriteInput->Size);
 
-		DbgPrintEx(0, 0, DBG_MARKER "Write Params:  %lx, 0x%llx \n", WriteInput->Value, WriteInput->Address);
+		DbgPrintEx(0, 0, DBG_MARKER "Write params:  %lx, 0x%llx\n", WriteInput->Value[0], WriteInput->Address);
 
 		Status = STATUS_SUCCESS;
 		BytesIO = sizeof(KERNEL_WRITE_REQUEST);
+		break;
 	}
-	else
+	case IO_READ_BUF_REQUEST:
+	{
+		// TODO: to do this
+		break;
+	}
+	case IO_WRITE_BUF_REQUEST:
+	{
+		// TODO: to do this
+		break;
+	}
+	default:
 	{
 		// if the code is unknown
 		Status = STATUS_INVALID_PARAMETER;
 		BytesIO = 0;
+		break;
+	}
 	}
 
 	// Complete the request
@@ -115,14 +110,15 @@ NTSTATUS IoControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 	return Status;
 }
 
+
 // Driver Entrypoint
 NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject,
 	PUNICODE_STRING pRegistryPath)
 {
 	DbgPrintEx(0, 0, DBG_MARKER "Driver Loaded\n");
 
-	RtlInitUnicodeString(&dev, L"\\Device\\hx_kernel_process_worker");
-	RtlInitUnicodeString(&dos, L"\\DosDevices\\hx_kernel_process_worker");
+	RtlInitUnicodeString(&dev, L"\\Device\\" DEVICE_NAME_W);
+	RtlInitUnicodeString(&dos, L"\\DosDevices\\" DEVICE_NAME_W);
 
 	IoCreateDevice(pDriverObject, 0, &dev, FILE_DEVICE_UNKNOWN, FILE_DEVICE_SECURE_OPEN, FALSE, &pDeviceObject);
 	IoCreateSymbolicLink(&dos, &dev);
@@ -139,7 +135,6 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject,
 }
 
 
-
 NTSTATUS UnloadDriver(PDRIVER_OBJECT pDriverObject)
 {
 	DbgPrintEx(0, 0, DBG_MARKER "Unload routine called.\n");
@@ -147,6 +142,7 @@ NTSTATUS UnloadDriver(PDRIVER_OBJECT pDriverObject)
 	IoDeleteSymbolicLink(&dos);
 	IoDeleteDevice(pDriverObject->DeviceObject);
 }
+
 
 NTSTATUS CreateCall(PDEVICE_OBJECT DeviceObject, PIRP irp)
 {
@@ -156,6 +152,7 @@ NTSTATUS CreateCall(PDEVICE_OBJECT DeviceObject, PIRP irp)
 	IoCompleteRequest(irp, IO_NO_INCREMENT);
 	return STATUS_SUCCESS;
 }
+
 
 NTSTATUS CloseCall(PDEVICE_OBJECT DeviceObject, PIRP irp)
 {

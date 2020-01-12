@@ -1,13 +1,31 @@
 #include <iostream>
+#include <defs.h>
+
 #include "KeInterface.h"
 
+void PrintBytesHex(BYTE* arr, UINT size);
 
 int main()
 {
-	KeInterface Driver("\\\\.\\hx_kernel_process_worker");
-	DWORD ProcessId = 0x3d40; // hardcode
+	KeInterface Driver("\\\\.\\" DEVICE_NAME);
+	DWORD ProcessId = 0x589c; // hardcode
+	
+	BYTE a[30];
 
-	Driver.WriteVirtualMemory(ProcessId, 0x5630bbfd30 /* hardcode */, 0xDEADBEEF, 4);
+	for (UINT i = 0, j = sizeof(a); i < sizeof(a); i++, j--)
+	{
+		a[i] = (BYTE)j;
+	}
+	PrintBytesHex(a, sizeof(a));
+	Driver.WriteVirtualMemory(ProcessId, 0x68feaff8e0 /* hardcode */, a, sizeof(a));
 
 	return 0;
+}
+
+void PrintBytesHex(BYTE* arr, UINT size)
+{
+	for (UINT i = 0; i < size; i++)
+	{
+		printf("%02x ", arr[i]);
+	}
 }

@@ -5,18 +5,36 @@
 
 using namespace std;
 
+void PrintBytesHex(BYTE* arr, UINT size);
+
 int main(int argc, char* argv[])
 {
-   DWORD a = 0xaabbccdd;
+   BYTE a[30];
 
-   printf("Pid: %08x\n", GetCurrentProcessId());
-   printf("Address of \"a\" is 0x%0llx\n", (DWORD64)&a);
+   for (UINT i = 0; i < sizeof(a); i++)
+   {
+      a[i] = (BYTE)i;
+   }
+
+   printf("Pid: %8x\n", GetCurrentProcessId());
+   printf("Address of \"a\" is 0x%llx\n", (DWORD64)a);
 
    while (true)
    {
-      printf("Value of \"a\" is %08x\n", a);
+      printf("Value of \"a\" is ");
+      PrintBytesHex(a, sizeof(a));
+      printf("\n");
+
       Sleep(1000);
    }
 
    return 0;
+}
+
+void PrintBytesHex(BYTE* arr, UINT size)
+{
+   for (UINT i = 0; i < size; i++)
+   {
+      printf("%02x ", arr[i]);
+   }
 }

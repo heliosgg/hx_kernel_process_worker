@@ -1,29 +1,8 @@
+#pragma once
+
 #include <Windows.h>
-
-#define IO_READ_REQUEST CTL_CODE(FILE_DEVICE_UNKNOWN, 0x0701 /* Our Custom Code */, METHOD_BUFFERED, FILE_SPECIAL_ACCESS)
-#define IO_WRITE_REQUEST CTL_CODE(FILE_DEVICE_UNKNOWN, 0x0702 /* Our Custom Code */, METHOD_BUFFERED, FILE_SPECIAL_ACCESS)
-
-
-typedef struct _KERNEL_READ_REQUEST
-{
-	ULONG ProcessId;
-
-	ULONG Address;
-	ULONG Response;
-	ULONG Size;
-
-} KERNEL_READ_REQUEST, * PKERNEL_READ_REQUEST;
-
-typedef struct _KERNEL_WRITE_REQUEST
-{
-	ULONG ProcessId;
-
-	DWORD64 Address;
-	ULONG Value;
-	ULONG Size;
-
-} KERNEL_WRITE_REQUEST, * PKERNEL_WRITE_REQUEST;
-
+#include <defs.h>
+#include <byte_buf.h>
 
 
 class KeInterface
@@ -46,7 +25,7 @@ public:
 	}
 
 	template <typename type>
-	type ReadVirtualMemory(ULONG ProcessId, ULONG ReadAddress,
+	type ReadVirtualMemory(ULONG ProcessId, DWORD64 ReadAddress,
 		SIZE_T Size)
 	{
 		if (hDriver == INVALID_HANDLE_VALUE)
@@ -68,19 +47,26 @@ public:
 	}
 
 	bool WriteVirtualMemory(ULONG ProcessId, DWORD64 WriteAddress,
-		ULONG WriteValue, SIZE_T WriteSize)
+		PVOID Buffer, ULONG nSize)
 	{
 		if (hDriver == INVALID_HANDLE_VALUE)
 			return false;
 		DWORD Bytes;
 
-		KERNEL_WRITE_REQUEST  WriteRequest;
-		WriteRequest.ProcessId = ProcessId;
-		WriteRequest.Address = WriteAddress;
-		WriteRequest.Value = WriteValue;
-		WriteRequest.Size = WriteSize;
+		ULONG nAllocSize = sizeof(KERNEL_WRITE_REQUEST) + nSize - sizeof(KERNEL_WRITE_REQUEST::Value);
 
-		if (DeviceIoControl(hDriver, IO_WRITE_REQUEST, &WriteRequest, sizeof(WriteRequest),
+		PKERNEL_WRITE_REQUEST  WriteRequest = (PKERNEL_WRITE_REQUEST)malloc(nAllocSize);
+		if (!WriteRequest)
+		{
+			return false;
+		}
+
+		WriteRequest->ProcessId = ProcessId;
+		WriteRequest->Address = WriteAddress;
+		WriteRequest->Size = nSize;
+		memcpy(WriteRequest->Value, Buffer, nSize);
+
+		if (DeviceIoControl(hDriver, IO_WRITE_REQUEST, WriteRequest, nAllocSize,
 			0, 0, &Bytes, NULL))
 			return true;
 		else
