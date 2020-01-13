@@ -1,6 +1,5 @@
 #include "ntos.h"
 #include <defs.h>
-#include <byte_buf.h>
 
 #pragma warning(disable:6011)
 
@@ -55,16 +54,15 @@ NTSTATUS IoControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 		PKERNEL_READ_REQUEST ReadInput = (PKERNEL_READ_REQUEST)Irp->AssociatedIrp.SystemBuffer;
 
 		PEPROCESS Process;
-		// Get our process
 		if (NT_SUCCESS(PsLookupProcessByProcessId(ReadInput->ProcessId, &Process)))
-			KeReadVirtualMemory(Process, ReadInput->Address,
-				&ReadInput->Response, ReadInput->Size);
+		{
+			KeReadVirtualMemory(Process, ReadInput->Address, ReadInput->Response, ReadInput->Size);
+		}
 
-		DbgPrintEx(0, 0, DBG_MARKER "Read params:  %lu, %#010x\n", ReadInput->ProcessId, ReadInput->Address);
-		DbgPrintEx(0, 0, DBG_MARKER "Value: %lu\n", ReadInput->Response);
+		DbgPrintEx(0, 0, DBG_MARKER "Read params:  %lx, %llx\n", ReadInput->ProcessId, (DWORD64)ReadInput->Address);
 
 		Status = STATUS_SUCCESS;
-		BytesIO = sizeof(KERNEL_READ_REQUEST);
+		BytesIO = sizeof(KERNEL_READ_REQUEST) + ReadInput->Size - sizeof(ReadInput->Response);
 		break;
 	}
 	case IO_WRITE_REQUEST:
@@ -72,25 +70,15 @@ NTSTATUS IoControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 		PKERNEL_WRITE_REQUEST WriteInput = (PKERNEL_WRITE_REQUEST)Irp->AssociatedIrp.SystemBuffer;
 
 		PEPROCESS Process;
-		// Get our process
 		if (NT_SUCCESS(PsLookupProcessByProcessId(WriteInput->ProcessId, &Process)))
-			KeWriteVirtualMemory(Process, WriteInput->Value,
-				WriteInput->Address, WriteInput->Size);
+		{
+			KeWriteVirtualMemory(Process, WriteInput->Value, WriteInput->Address, WriteInput->Size);
+		}
 
-		DbgPrintEx(0, 0, DBG_MARKER "Write params:  %lx, 0x%llx\n", WriteInput->Value[0], WriteInput->Address);
+		DbgPrintEx(0, 0, DBG_MARKER "Write params:  %lx, 0x%llx\n", WriteInput->Value[0], (DWORD64)WriteInput->Address);
 
 		Status = STATUS_SUCCESS;
 		BytesIO = sizeof(KERNEL_WRITE_REQUEST);
-		break;
-	}
-	case IO_READ_BUF_REQUEST:
-	{
-		// TODO: to do this
-		break;
-	}
-	case IO_WRITE_BUF_REQUEST:
-	{
-		// TODO: to do this
 		break;
 	}
 	default:
@@ -112,8 +100,7 @@ NTSTATUS IoControl(PDEVICE_OBJECT DeviceObject, PIRP Irp)
 
 
 // Driver Entrypoint
-NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject,
-	PUNICODE_STRING pRegistryPath)
+NTSTATUS DriverEntry(PDRIVER_OBJECT pDriverObject,	PUNICODE_STRING pRegistryPath)
 {
 	DbgPrintEx(0, 0, DBG_MARKER "Driver Loaded\n");
 

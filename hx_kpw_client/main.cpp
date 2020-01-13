@@ -8,16 +8,12 @@ void PrintBytesHex(BYTE* arr, UINT size);
 int main()
 {
 	KeInterface Driver("\\\\.\\" DEVICE_NAME);
-	DWORD ProcessId = 0x589c; // hardcode
+	DWORD ProcessId = 0x21dc; // hardcode
 	
 	BYTE a[30];
 
-	for (UINT i = 0, j = sizeof(a); i < sizeof(a); i++, j--)
-	{
-		a[i] = (BYTE)j;
-	}
+	Driver.ReadVirtualMemory(ProcessId, (PVOID)0xc6c2b4f850 /* hardcode */, a, sizeof(a));
 	PrintBytesHex(a, sizeof(a));
-	Driver.WriteVirtualMemory(ProcessId, 0x68feaff8e0 /* hardcode */, a, sizeof(a));
 
 	return 0;
 }

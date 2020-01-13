@@ -2,7 +2,6 @@
 
 #include <Windows.h>
 #include <defs.h>
-#include <byte_buf.h>
 
 
 class KeInterface
@@ -24,52 +23,59 @@ public:
 		}
 	}
 
-	template <typename type>
-	type ReadVirtualMemory(ULONG ProcessId, DWORD64 ReadAddress,
-		SIZE_T Size)
+	bool ReadVirtualMemory(ULONG ProcessId, PVOID lpBaseAddress, PVOID lpBuffer, SIZE_T nSize)
 	{
 		if (hDriver == INVALID_HANDLE_VALUE)
-			return (type)false;
-
-		DWORD Return, Bytes;
-		KERNEL_READ_REQUEST ReadRequest;
-
-		ReadRequest.ProcessId = ProcessId;
-		ReadRequest.Address = ReadAddress;
-		ReadRequest.Size = Size;
-
-		// send code to our driver with the arguments
-		if (DeviceIoControl(hDriver, IO_READ_REQUEST, &ReadRequest,
-			sizeof(ReadRequest), &ReadRequest, sizeof(ReadRequest), 0, 0))
-			return (type)ReadRequest.Response;
-		else
-			return (type)false;
-	}
-
-	bool WriteVirtualMemory(ULONG ProcessId, DWORD64 WriteAddress,
-		PVOID Buffer, ULONG nSize)
-	{
-		if (hDriver == INVALID_HANDLE_VALUE)
-			return false;
-		DWORD Bytes;
-
-		ULONG nAllocSize = sizeof(KERNEL_WRITE_REQUEST) + nSize - sizeof(KERNEL_WRITE_REQUEST::Value);
-
-		PKERNEL_WRITE_REQUEST  WriteRequest = (PKERNEL_WRITE_REQUEST)malloc(nAllocSize);
-		if (!WriteRequest)
 		{
 			return false;
 		}
 
-		WriteRequest->ProcessId = ProcessId;
-		WriteRequest->Address = WriteAddress;
-		WriteRequest->Size = nSize;
-		memcpy(WriteRequest->Value, Buffer, nSize);
+		DWORD Return, Bytes;
+		ULONG nAllocSize = sizeof(KERNEL_READ_REQUEST) + nSize - sizeof(KERNEL_READ_REQUEST::Response);
+		PKERNEL_READ_REQUEST pReadRequest = (PKERNEL_READ_REQUEST)malloc(nAllocSize);
 
-		if (DeviceIoControl(hDriver, IO_WRITE_REQUEST, WriteRequest, nAllocSize,
-			0, 0, &Bytes, NULL))
-			return true;
-		else
+		if (!pReadRequest)
+		{
 			return false;
+		}
+
+		pReadRequest->ProcessId = ProcessId;
+		pReadRequest->Address = lpBaseAddress;
+		pReadRequest->Size = nSize;
+
+		BOOL result = DeviceIoControl(hDriver, IO_READ_REQUEST, pReadRequest, nAllocSize, pReadRequest, nAllocSize, 0, 0);
+		printf("%16llx\n", *(PDWORD64)pReadRequest->Response);
+		memcpy(lpBuffer, pReadRequest->Response, nSize);
+		free(pReadRequest);
+
+		return result;
+	}
+
+	bool WriteVirtualMemory(ULONG ProcessId, PVOID lpBaseAddress, PVOID lpBuffer, ULONG nSize)
+	{
+		if (hDriver == INVALID_HANDLE_VALUE)
+		{
+			return false;
+		}
+
+		DWORD Bytes;
+		ULONG nAllocSize = sizeof(KERNEL_WRITE_REQUEST) + nSize - sizeof(KERNEL_WRITE_REQUEST::Value);
+		PKERNEL_WRITE_REQUEST  pWriteRequest = (PKERNEL_WRITE_REQUEST)malloc(nAllocSize);
+
+		if (!pWriteRequest)
+		{
+			return false;
+		}
+
+		pWriteRequest->ProcessId = ProcessId;
+		pWriteRequest->Address = lpBaseAddress;
+		pWriteRequest->Size = nSize;
+		memcpy(pWriteRequest->Value, lpBuffer, nSize);
+
+		BOOL result = DeviceIoControl(hDriver, IO_WRITE_REQUEST, pWriteRequest, nAllocSize, 0, 0, &Bytes, NULL);
+
+		free(pWriteRequest);
+
+		return result;
 	}
 };
